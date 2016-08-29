@@ -37,7 +37,7 @@
     },
     "imagePublisher": {
       "type": "string",
-      "defaultValue": "Canonical",
+      "defaultValue": "OpenLogic",
       "metadata": {
         "description": "Image Publisher"
       }
@@ -51,14 +51,14 @@
     },
     "imageOffer": {
       "type": "string",
-      "defaultValue": "UbuntuServer",
+      "defaultValue": "CentOS",
       "metadata": {
         "description": "Image Offer"
       }
     },
     "imageSKU": {
       "type": "string",
-      "defaultValue": "14.04.2-LTS",
+      "defaultValue": "6.7",
       "metadata": {
         "description": "Image SKU"
       }
@@ -98,7 +98,11 @@
     "vnetID": "[resourceId('Microsoft.Network/virtualNetworks',parameters('virtualNetworkName'))]",
     "subnetRef": "[concat(variables('vnetID'),'/subnets/',variables ('subnetName'))]",
     "numberOfInstances": 2,
-    "lbID": "[resourceId('Microsoft.Network/loadBalancers',parameters('loadBalancerName'))]"
+    "lbID": "[resourceId('Microsoft.Network/loadBalancers',parameters('loadBalancerName'))]",
+    "installScriptName": "install-mysql",
+    "fileUriBase": "https://raw.githubusercontent.com/v-wjia/azurearmtest/master/",
+    "installScriptUri": "[concat(variables('fileUriBase'), variables('installScriptName'))]",    
+    "installCommand": "[concat('sh ', variables('installScriptName'))]"    
   },
   "resources": [
     {
@@ -284,6 +288,34 @@
           }
         }
       }
-    }
+    },
+    {
+        "type": "Microsoft.Compute/virtualMachines/extensions",
+        "name": "[concat(concat(parameters('vmNamePrefix'),copyIndex()),'/newuserscript')]",
+        "apiVersion": "2015-06-15",
+        "location": "[resourceGroup().location]",
+        "dependsOn": [
+            "[concat('Microsoft.Compute/virtualMachines/',concat(parameters('vmNamePrefix'),copyIndex()))]"
+        ],
+        "properties": {
+            "publisher": "Microsoft.OSTCExtensions",
+            "type": "CustomScriptForLinux",
+            "typeHandlerVersion": "1.4",
+            "autoUpgradeMinorVersion": true,
+            "settings": {
+                "fileUris": [
+                    "[concat(variables('installScriptUri'), copyIndex(), '.sh')]"
+                ]
+            },
+            "protectedSettings": {
+                "commandToExecute": "[concat(variables('installCommand'), copyIndex(), '.sh')]"
+
+            }
+        },
+        "copy": {
+            "name": "extensionsCopy",
+            "count": "[variables('numberOfInstances')]"
+        }
+    }    
   ]
 }
