@@ -12,7 +12,7 @@ enabled=1
 
 #echo "$config" > /etc/yum.repos.d/nginx.repo
 yum check-update
-yum install nginx
+yum -y install nginx
 
 
 
