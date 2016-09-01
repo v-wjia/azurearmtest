@@ -20,16 +20,16 @@ chkconfig nginx on
 #startip=$1
 #nodeip=$2
 
+sed -i "s#server {#upstream myserver {#g" /etc/nginx/conf.d/default.conf
 sed -i '1 a\
-upstream myserver {\
 server 10.0.2.20:80;\
 server 10.0.2.21:80;\
 }' /etc/nginx/conf.d/default.conf
 
-sed -i '14/root   /usr/share/nginx/html;/#root   /usr/share/nginx/html;/' /etc/nginx/conf.d/default.conf
-sed -i '15/index  index.html index.htm;/#index  index.html index.htm;/' /etc/nginx/conf.d/default.conf
+sed -i '4 a\
+server {' /etc/nginx/conf.d/default.conf
 
-sed -i '16 a\
-proxy_pass http://myServer;' /etc/nginx/conf.d/default.conf
+sed -i "s#root   /usr/share/nginx/html;#proxy_pass http://myServer;#g" /etc/nginx/conf.d/default.conf
+sed -i "s#index  index.html index.htm# #g" /etc/nginx/conf.d/default.conf
 
 service nginx restart
