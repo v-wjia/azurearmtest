@@ -31,3 +31,5 @@ sed -i '15/index  index.html index.htm;/#index  index.html index.htm;/' /etc/ngi
 
 sed -i '16 a\
 proxy_pass http://myServer;' /etc/nginx/conf.d/default.conf
+
+service nginx restart
