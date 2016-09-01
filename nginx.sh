@@ -21,7 +21,7 @@ chkconfig nginx on
 #nodeip=$2
 
 sed -i '1 a\
-/server {/upstream myserver {\
+upstream myserver {\
 server 10.0.2.20:80;\
 server 10.0.2.21:80;\
 }' /etc/nginx/conf.d/default.conf
