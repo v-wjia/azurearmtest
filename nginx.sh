@@ -30,6 +30,6 @@ sed -i '4 a\
 server {' /etc/nginx/conf.d/default.conf
 
 sed -i "s#root   /usr/share/nginx/html;#proxy_pass http://myServer;#g" /etc/nginx/conf.d/default.conf
-sed -i "s#index  index.html index.htm# #g" /etc/nginx/conf.d/default.conf
+sed -i "s#index  index.html index.htm;# #g" /etc/nginx/conf.d/default.conf
 
 service nginx restart
