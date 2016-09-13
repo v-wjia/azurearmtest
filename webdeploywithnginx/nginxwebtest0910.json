@@ -282,7 +282,7 @@
     "haproxyInstallScriptPrefix": "[concat(variables('fileUriBase'), variables('haproxyInstallName'))]", 
     "mysqlInstallScriptPrefix": "[concat(variables('fileUriBase'), variables('mysqlInstallName'))]",
 	
-	"dbSubnetStartAddress": "10.0.4.5",
+	"dbSubnetStartAddress": "10.0.4.4",
 	"havip": "10.0.3.7",
 	"customScriptCommandToExecute": "bash azuremysql.sh",
 	"singleQuote": "",
@@ -1019,7 +1019,7 @@
                             "fileUris": [
                                 "[variables('haproxyInstallScriptPrefix')]"
                             ],
-                            "commandToExecute": "[concat('sh ', variables('haproxyInstallName'), ' ', copyIndex(1))]"
+                            "commandToExecute": "[concat('sh ', variables('haproxyInstallName'))]"
                         }
                     }
                 }
