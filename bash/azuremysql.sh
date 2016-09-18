@@ -205,15 +205,15 @@ install_mysql_centos() {
         return
     fi
     echo "installing mysql"
-    wget https://dev.mysql.com/get/Downloads/MySQL-5.6/MySQL-5.6.26-1.el6.x86_64.rpm-bundle.tar
+    wget https://armresstorage.blob.core.chinacloudapi.cn/script/MySQL-5.6.26-1.el6.x86_64.rpm-bundle.tar
     tar -xvf MySQL-5.6.26-1.el6.x86_64.rpm-bundle.tar
 	curlib=$(rpm -qa |grep mysql-libs-)
     rpm -e --nodeps $curlib
     rpm -ivh MySQL-server-5.6.26-1.el6.x86_64.rpm
     rpm -ivh MySQL-client-5.6.26-1.el6.x86_64.rpm
-	wget http://dev.mysql.com/get/Downloads/Connector-Python/mysql-connector-python-2.0.4-1.el6.noarch.rpm
+	wget https://armresstorage.blob.core.chinacloudapi.cn/script/mysql-connector-python-2.0.4-1.el6.noarch.rpm
 	rpm -ivh mysql-connector-python-2.0.4-1.el6.noarch.rpm
-	wget http://dev.mysql.com/get/Downloads/MySQLGUITools/mysql-utilities-1.5.5-1.el6.noarch.rpm
+	wget https://armresstorage.blob.core.chinacloudapi.cn/script/mysql-utilities-1.5.5-1.el6.noarch.rpm
 	rpm -ivh mysql-utilities-1.5.5-1.el6.noarch.rpm
     yum -y install xinetd
 }
@@ -301,11 +301,13 @@ then
 CREATE USER 'rpluser'@'%' IDENTIFIED BY '${RPLPWD}';
 GRANT REPLICATION SLAVE ON *.* TO 'rpluser'@'%';
 FLUSH PRIVILEGES;
+SET GLOBAL max_connect_errors=10000;
 EOF
 else
     mysql -u root -p"${ROOTPWD}" <<EOF
 change master to master_host='${MASTERIP}', master_port=3306, master_user='rpluser', master_password='${RPLPWD}', master_auto_position=1;
 START slave;
+SET GLOBAL max_connect_errors=10000;
 EOF
 fi
 }
@@ -344,6 +346,7 @@ SET PASSWORD FOR 'root'@'127.0.0.1' = PASSWORD('${ROOTPWD}');
 SET PASSWORD FOR 'root'@'::1' = PASSWORD('${ROOTPWD}');
 CREATE USER 'admin'@'%' IDENTIFIED BY '${ROOTPWD}';
 GRANT ALL PRIVILEGES ON *.* TO 'admin'@'%' with grant option;
+SET GLOBAL max_connect_errors=10000;
 FLUSH PRIVILEGES;
 EOF
 fi
