@@ -93,78 +93,78 @@ chkconfig haproxy on
 #########################
 # keepalived
 #########################
-echo ""
-echo ""
-echo "begin instll keepalived ------------------------------- "
+#echo ""
+#echo ""
+#echo "begin instll keepalived ------------------------------- "
 
-if [ ! -d "/usr/include/openssl/" ]; then
-	echo "openssl develop kit not exist, yum will install"
-	yum -y install openssl-devel.x86_64
-fi
+#if [ ! -d "/usr/include/openssl/" ]; then
+#	echo "openssl develop kit not exist, yum will install"
+#	yum -y install openssl-devel.x86_64
+#fi
 
-cd ../
+#cd ../
 
-tar zxvf keepalived-1.2.23.tar.gz
-cd keepalived-1.2.23
-./configure --prefix=/usr/local/keepalived
-make
-make install
+#tar zxvf keepalived-1.2.23.tar.gz
+#cd keepalived-1.2.23
+#./configure --prefix=/usr/local/keepalived
+#make
+#make install
 
-keepalivedConfig="
-! Configuration File for keepalived
-global_defs {
-   notification_email {
-        admin@localhost.com
-   }
-   notification_email_from admin@localhost.com
-   smtp_server smtpcloud.sohu.com
-   smtp_connect_timeout 30
-   router_id LVS_DEVEL
-}
+#keepalivedConfig="
+#! Configuration File for keepalived
+#global_defs {
+#   notification_email {
+#        admin@localhost.com
+#   }
+#   notification_email_from admin@localhost.com
+#   smtp_server smtpcloud.sohu.com
+#   smtp_connect_timeout 30
+#   router_id LVS_DEVEL
+#}
+#
+#vrrp_instance VI_1 {
+#    state MASTER
+#    interface eth0
+#    virtual_router_id 9
+#    priority 200
+#    advert_int 1
+#    preempt
+#    authentication {
+#        auth_type PASS
+#        auth_pass myloadblance
+#    }
+#    virtual_ipaddress {
+#        ${VIP1_IP}
+#    }
+#}
+#
+#vrrp_instance VI_2 {
+#    state BACKUP
+#    interface eth0
+#    virtual_router_id 10
+#    priority 100
+#    advert_int 1
+#    preempt
+#    authentication {
+#        auth_type PASS
+#        auth_pass myloadblance
+#    }
+#    virtual_ipaddress {
+#        ${VIP2_IP}
+#    }
+#}
+#"
 
-vrrp_instance VI_1 {
-    state MASTER
-    interface eth0
-    virtual_router_id 9
-    priority 200
-    advert_int 1
-    preempt
-    authentication {
-        auth_type PASS
-        auth_pass myloadblance
-    }
-    virtual_ipaddress {
-        ${VIP1_IP}
-    }
-}
+#cp /usr/local/keepalived/sbin/keepalived /usr/sbin/
+#cp /usr/local/keepalived/etc/sysconfig/keepalived /etc/sysconfig/
+#cp /usr/local/keepalived/etc/rc.d/init.d/keepalived /etc/init.d/
+#mkdir /etc/keepalived
+#cp /usr/local/keepalived/etc/keepalived/keepalived.conf /etc/keepalived/
 
-vrrp_instance VI_2 {
-    state BACKUP
-    interface eth0
-    virtual_router_id 10
-    priority 100
-    advert_int 1
-    preempt
-    authentication {
-        auth_type PASS
-        auth_pass myloadblance
-    }
-    virtual_ipaddress {
-        ${VIP2_IP}
-    }
-}
-"
+#if [ ! -d "/etc/keepalived" ]; then
+#	mkdir /etc/keepalived
+#fi
+#echo "$keepalivedConfig" > /etc/keepalived/keepalived.conf
 
-cp /usr/local/keepalived/sbin/keepalived /usr/sbin/
-cp /usr/local/keepalived/etc/sysconfig/keepalived /etc/sysconfig/
-cp /usr/local/keepalived/etc/rc.d/init.d/keepalived /etc/init.d/
-mkdir /etc/keepalived
-cp /usr/local/keepalived/etc/keepalived/keepalived.conf /etc/keepalived/
-
-if [ ! -d "/etc/keepalived" ]; then
-	mkdir /etc/keepalived
-fi
-echo "$keepalivedConfig" > /etc/keepalived/keepalived.conf
-
-service keepalived start
-chkconfig keepalived on
+#service keepalived start
+#chkconfig keepalived on
