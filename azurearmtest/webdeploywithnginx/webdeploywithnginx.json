@@ -1,0 +1,532 @@
+{
+    "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "adminUsername": {
+            "type": "string",
+            "metadata": {
+                "description": "Admin username"
+            }
+        },
+        "adminPassword": {
+            "type": "securestring",
+            "metadata": {
+                "description": "Admin password"
+            }
+        },
+        "dnsLabelPrefix": {
+            "type": "string",
+            "metadata": {
+                "description": "Unique DNS Name for the Public IP used to access the Virtual Machine."
+            }
+        },
+		    "PrimaryVmNamePrefix": {
+            "type": "string",
+            "defaultValue": "nginxVM",
+			      "metadata": {
+				        "description": "Virtual machine name prefix for primary vm instances"
+			      }
+        },
+        "SecondaryVmNamePrefix": {
+            "type": "string",
+            "defaultValue": "webVM",
+			      "metadata": {
+				        "description": "Virtual machine name prefix for secondary vm instances"
+			     }
+        },
+        "nginxOSUBTSKU": {
+            "type": "string",
+            "defaultValue": "14.04.2-LTS",
+            "allowedValues": [
+                "14.04.2-LTS"
+            ],
+            "metadata": {
+                "description": "The Ubuntu version for the VM. This will pick a origented image of this given ubuntu version. Allowed values: 14.04.2-LTS."
+            }
+        },
+        "webOSUBTSKU": {
+            "type": "string",
+            "defaultValue": "14.04.2-LTS",
+            "allowedValues": [
+                "14.04.2-LTS"
+            ],
+            "metadata": {
+                "description": "The Ubuntu version for the VM. This will pick a origented image of this given ubuntu version. Allowed values: 14.04.2-LTS."
+            }
+        },
+        "nginxOSSKU": {
+            "type": "string",
+            "defaultValue": "6.7",
+            "allowedValues": [
+                "6.7"
+            ],
+            "metadata": {
+                "description": "The CentOS version for the VM. This will pick a origented image of this given ubuntu version. Allowed values: 6.7."
+            }
+        },
+        "webOSSKU": {
+            "type": "string",
+            "defaultValue": "6.7",
+            "allowedValues": [
+                "6.7"
+            ],
+            "metadata": {
+                "description": "The CentOS version for the VM. This will pick a origented image of this given ubuntu version. Allowed values: 6.7."
+            }
+        },
+        "imageSKU": {
+            "type": "string",
+            "defaultValue": "2012-R2-Datacenter",
+            "allowedValues": [
+                "2012-Datacenter",
+                "2012-R2-Datacenter"
+            ],
+            "metadata": {
+                "description": "The Windows version for the VM. This will pick a fully patched image of this given Windows version. Allowed values: 2012-Datacenter, 2012-R2-Datacenter."
+            }
+        },
+        "vmSize": {
+            "type": "string",
+            "defaultValue": "Standard_A1",
+            "allowedValues": [
+                "Standard_A0",
+                "Standard_A1",
+                "Standard_A2",
+                "Standard_A3",
+                "Standard_A4"
+            ],
+            "metadata": {
+                "description": "Virtual machine size"
+             }
+        }
+    },
+    
+    "variables": {
+        "storageAccountType": "Standard_LRS",
+        "vmStorageAccountContainerName": "vhds",
+        "availabilitySetName": "webCloudAvSet",
+        "addressPrefix": "10.0.0.0/16",
+        "subnetSLBName": "Subnet-1",
+        "subnetSLBPrefix": "10.0.1.0/24",
+        "subnetWebName": "Subnet-2",
+        "subnetWebPrefix": "10.0.2.0/24",
+        "vnetName": "webCloudVNET",
+        "vnetID": "[resourceId('Microsoft.Network/virtualNetworks',variables('vnetName'))]",
+        "subnetSLBRef": "[concat(variables('vnetID'),'/subnets/',variables ('subnetSLBName'))]",
+        "subnetWebRef": "[concat(variables('vnetID'),'/subnets/',variables ('subnetWebName'))]",
+        
+        "publicIPAddressType": "Dynamic",
+        "outIPAddressType": "Dynamic",
+        "publicIPAddressName": "webCloudPublicIP",
+        "publicIPAddressID": "[resourceId('Microsoft.Network/publicIPAddresses',variables('publicIPAddressName'))]",
+        "outIPAddressName": "webCloudOutIP",
+        "outIPAddressID": "[resourceId('Microsoft.Network/publicIPAddresses',variables('outIPAddressName'))]",
+        
+        "lbName": "webCloudLB",
+        "lbID": "[resourceId('Microsoft.Network/loadBalancers',variables('lbName'))]",
+        "numberOfNginxInstances": 1,
+        "numberOfWebInstances": 2,
+        "frontEndIPConfigID": "[concat(variables('lbID'),'/frontendIPConfigurations/loadBalancerFrontend')]",
+        "lbPoolID": "[concat(variables('lbID'),'/backendAddressPools/LoadBalancerBackend')]",
+        "lbProbeID": "[concat(variables('lbID'),'/probes/tcpProbe')]",
+        "newStorageAccountName": "[concat(uniquestring(resourceGroup().id),'storage')]",
+        "apiVersion": "2015-06-15",
+        "hostDNSNameScriptArgument": "[concat('*.',resourceGroup().location,'.cloudapp.azure.com')]",
+        "primaryNicNamePrefix": "nicNginx",
+        "secondaryNicNamePrefix": "nicWeb",        
+        "imagePublisher":"OpenLogic",
+        "imageOffer":"CentOS",
+        
+        "fileUriBase": "https://armresstorage.blob.core.chinacloudapi.cn/script/",
+        "nginxInstallName":"install-nginx",
+        "webInstallName":"install-web",
+        "nginxInstallScriptPrefix": "[concat(variables('fileUriBase'), variables('nginxInstallName'))]", 
+        "webInstallScriptPrefix": "[concat(variables('fileUriBase'), variables('webInstallName'))]"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Storage/storageAccounts",
+            "name": "[variables('newStorageAccountName')]",
+            "apiVersion": "[variables('apiVersion')]",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "accountType": "[variables('storageAccountType')]"
+            }
+        },
+        {
+            "type": "Microsoft.Compute/availabilitySets",
+            "name": "[variables('availabilitySetName')]",
+            "apiVersion": "[variables('apiVersion')]",
+            "location": "[resourceGroup().location]",
+            "properties": { }
+        },
+        {
+            "apiVersion": "[variables('apiVersion')]",
+            "type": "Microsoft.Network/publicIPAddresses",
+            "name": "[variables('publicIPAddressName')]",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "publicIPAllocationMethod": "[variables('publicIPAddressType')]",
+                "dnsSettings": {
+                    "domainNameLabel": "[parameters('dnsLabelPrefix')]"
+                }
+            }
+        },
+        {
+            "apiVersion": "[variables('apiVersion')]",
+            "type": "Microsoft.Network/publicIPAddresses",
+            "name": "[concat(variables('outIPAddressName'), copyindex())]",
+            "location": "[resourceGroup().location]",
+            "copy": {
+                "name": "ipLoop",
+                "count": "[variables('numberOfWebInstances')]"
+            },
+            "properties": {
+                "publicIPAllocationMethod": "[variables('outIPAddressType')]"
+            }
+        },
+        {
+            "apiVersion": "[variables('apiVersion')]",
+            "type": "Microsoft.Network/virtualNetworks",
+            "name": "[variables('vnetName')]",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "addressSpace": {
+                    "addressPrefixes": [
+                        "[variables('addressPrefix')]"
+                    ]
+                },
+                "subnets": [
+                    {
+                        "name": "[variables('subnetSLBName')]",
+                        "properties": {
+                            "addressPrefix": "[variables('subnetSLBPrefix')]"
+                        }
+                    },
+                    {
+                        "name": "[variables('subnetWebName')]",
+                        "properties": {
+                            "addressPrefix": "[variables('subnetWebPrefix')]"
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "apiVersion": "[variables('apiVersion')]",
+            "type": "Microsoft.Network/networkInterfaces",
+            "name": "[concat(variables('primaryNicNamePrefix'), copyindex())]",
+            "location": "[resourceGroup().location]",
+            "copy": {
+                "name": "nicLoop",
+                "count": "[variables('numberOfNginxInstances')]"
+            },
+            "dependsOn": [
+                "[concat('Microsoft.Network/virtualNetworks/', variables('vnetName'))]",
+                "[concat('Microsoft.Network/loadBalancers/', variables('lbName'))]"
+            ],
+            "properties": {
+                "ipConfigurations": [
+                    {
+                        "name": "ipconfigNginx",
+                        "properties": {
+                            "privateIPAllocationMethod": "Dynamic",
+                            "subnet": {
+                                "id": "[variables('subnetSLBRef')]"
+                            },
+                            "loadBalancerBackendAddressPools": [
+                                {
+                                    "id": "[concat(variables('lbID'), '/backendAddressPools/LoadBalancerBackend')]"
+                                }
+                            ],
+                            "loadBalancerInboundNatRules": [
+                                {
+                                    "id": "[concat(variables('lbID'),'/inboundNatRules/PRDP-VM', copyindex())]"
+                                }
+                            ]
+                        }
+
+                    }
+                ]
+            }
+        },
+        {
+            "apiVersion": "[variables('apiVersion')]",
+            "type": "Microsoft.Network/networkInterfaces",
+            "name": "[concat(variables('secondaryNicNamePrefix'), copyindex())]",
+            "location": "[resourceGroup().location]",
+            "copy": {
+                "name": "nicLoop",
+                "count": "[variables('numberOfWebInstances')]"
+            },
+            "dependsOn": [
+                "[concat('Microsoft.Network/virtualNetworks/', variables('vnetName'))]",
+                "[concat('Microsoft.Network/publicIPAddresses/', variables('outIPAddressName'), copyindex())]"
+            ],
+            "properties": {
+                "ipConfigurations": [
+                    {
+                        "name": "ipconfigWeb",
+                        "properties": {
+                            "privateIPAllocationMethod": "Static",
+                            "privateIPAddress": "[concat('10.0.2.', copyindex(20))]",
+                            "subnet": {
+                                "id": "[variables('subnetWebRef')]"
+                            },
+                            "publicIPAddress": {
+                                "id": "[resourceId('Microsoft.Network/publicIPAddresses',concat(variables('outIPAddressName'), copyindex()))]"
+                            }
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "apiVersion": "[variables('apiVersion')]",
+            "name": "[variables('lbName')]",
+            "type": "Microsoft.Network/loadBalancers",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[concat('Microsoft.Network/publicIPAddresses/', variables('publicIPAddressName'))]"
+            ],
+            "properties": {
+                "frontendIPConfigurations": [
+                    {
+                        "name": "LoadBalancerFrontend",
+                        "properties": {
+                            "publicIPAddress": {
+                                "id": "[variables('publicIPAddressID')]"
+                            }
+                        },
+                        "privateIPAddress": "10.0.1.1",
+                        "privateIPAllocationMethod": "Static"
+                    }
+                ],
+                "backendAddressPools": [
+                    {
+                        "name": "LoadBalancerBackend"
+
+                    }
+                ],
+                "inboundNatRules": [
+                    {
+                        "name": "PRDP-VM0",
+                        "properties": {
+                            "frontendIPConfiguration": {
+                                "id": "[variables('frontEndIPConfigID')]"
+                            },
+                            "protocol": "tcp",
+                            "frontendPort": 50001,
+                            "backendPort": 22,
+                            "enableFloatingIP": false
+                        }
+                    },
+                    {
+                        "name": "PRDP-VM1",
+                        "properties": {
+                            "frontendIPConfiguration": {
+                                "id": "[variables('frontEndIPConfigID')]"
+                            },
+                            "protocol": "tcp",
+                            "frontendPort": 50002,
+                            "backendPort": 22,
+                            "enableFloatingIP": false
+                        }
+                    }
+                ],
+                "loadBalancingRules": [
+                    {
+                        "name": "LBRule",
+                        "properties": {
+                            "frontendIPConfiguration": {
+                                "id": "[variables('frontEndIPConfigID')]"
+                            },
+                            "backendAddressPool": {
+                                "id": "[variables('lbPoolID')]"
+                            },
+                            "protocol": "tcp",
+                            "frontendPort": 80,
+                            "backendPort": 80,
+                            "enableFloatingIP": false,
+                            "idleTimeoutInMinutes": 5,
+                            "probe": {
+                                "id": "[variables('lbProbeID')]"
+                            }
+                        }
+                    }
+                ],
+                "probes": [
+                    {
+                        "name": "tcpProbe",
+                        "properties": {
+                            "protocol": "tcp",
+                            "port": 80,
+                            "intervalInSeconds": "5",
+                            "numberOfProbes": "2"
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "apiVersion": "[variables('apiVersion')]",
+            "type": "Microsoft.Compute/virtualMachines",
+            "name": "[concat(parameters('primaryVmNamePrefix'), copyindex())]",
+            "copy": {
+                "name": "virtualMachineLoop1",
+                "count": "[variables('numberOfNginxInstances')]"
+            },
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[concat('Microsoft.Storage/storageAccounts/', variables('newStorageAccountName'))]",
+                "[concat('Microsoft.Network/networkInterfaces/', variables('primaryNicNamePrefix'), copyindex())]",
+                "[concat('Microsoft.Compute/availabilitySets/', variables('availabilitySetName'))]"
+            ],
+            "tags": {
+                "Role": "nginx"
+            },
+            "properties": {
+                "availabilitySet": {
+                    "id": "[resourceId('Microsoft.Compute/availabilitySets',variables('availabilitySetName'))]"
+                },
+                "hardwareProfile": {
+                    "vmSize": "[parameters('vmSize')]"
+                },
+                "osProfile": {
+                    "computername": "[concat(parameters('primaryVmNamePrefix'), copyIndex())]",
+                    "adminUsername": "[parameters('adminUsername')]",
+                    "adminPassword": "[parameters('adminPassword')]"
+                },
+                "storageProfile": {
+                    "imageReference": {
+                        "publisher": "[variables('imagePublisher')]",
+                        "offer": "[variables('imageOffer')]",
+                        "sku": "[parameters('nginxOSSKU')]",
+                        "version": "latest"
+                    },
+                    "osDisk": {
+                        "name": "ngosdisk",
+                        "vhd": {
+                            "uri": "[concat('http://',variables('newStorageAccountName'),'.blob.core.chinacloudapi.cn/vhds/','ngosdisk', copyindex(), '.vhd')]"
+                        },
+                        "caching": "ReadWrite",
+                        "createOption": "FromImage"
+                    }
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces',concat(variables('primaryNicNamePrefix'),copyindex()))]"
+                        }
+                    ]
+                },
+                "diagnosticsProfile": {
+                    "bootDiagnostics": {
+                        "enabled": "true",
+                        "storageUri": "[concat('http://',variables('newStorageAccountName'),'.blob.core.chinacloudapi.cn')]"
+                    }
+                }
+            },
+            "resources": [
+                {
+                    "apiVersion": "[variables('apiVersion')]",
+                    "type": "Microsoft.Compute/virtualMachines/extensions",
+                    "name": "[concat(parameters('primaryVmNamePrefix'), copyIndex(),'/LinuxRMCustomScriptExtension')]",
+                    "location": "[resourceGroup().location]",  
+                    "dependsOn": [
+                        "[concat('Microsoft.Compute/virtualMachines/',parameters('primaryVmNamePrefix'),copyIndex())]"
+                    ],                   
+                    "properties": {
+                        "publisher": "Microsoft.OSTCExtensions",
+                        "type": "CustomScriptForLinux",
+                        "typeHandlerVersion": "1.4",
+                        "autoUpgradeMinorVersion": true,
+                        "settings": {
+                            "fileUris": [
+                                "[concat(variables('nginxInstallScriptPrefix'), '.sh')]"
+                            ],
+                            "commandToExecute": "[concat('sh ', variables('nginxInstallName'), '.sh', ' ', variables('numberOfWebInstances'), ' ', '10.0.2.20')]"
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "apiVersion": "[variables('apiVersion')]",
+            "type": "Microsoft.Compute/virtualMachines",
+            "name": "[concat(parameters('secondaryVmNamePrefix'), copyindex())]",
+            "copy": {
+                "name": "virtualMachineLoop2",
+                "count": "[variables('numberOfWebInstances')]"
+            },
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[concat('Microsoft.Storage/storageAccounts/', variables('newStorageAccountName'))]",
+                "[concat('Microsoft.Network/networkInterfaces/', variables('secondaryNicNamePrefix'), copyindex())]",
+                "[concat('Microsoft.Compute/availabilitySets/', variables('availabilitySetName'))]"
+            ],
+            "tags": {
+                "Role": "web"
+            },
+            "properties": {
+                "availabilitySet": {
+                    "id": "[resourceId('Microsoft.Compute/availabilitySets',variables('availabilitySetName'))]"
+                },
+                "hardwareProfile": {
+                    "vmSize": "[parameters('vmSize')]"
+                },
+                "osProfile": {
+                    "computername": "[concat(parameters('secondaryVmNamePrefix'), copyIndex())]",
+                    "adminUsername": "[parameters('adminUsername')]",
+                    "adminPassword": "[parameters('adminPassword')]"
+                },
+                "storageProfile": {
+                    "imageReference": {
+                        "publisher": "[variables('imagePublisher')]",
+                        "offer": "[variables('imageOffer')]",
+                        "sku": "[parameters('webOSSKU')]",
+                        "version": "latest"
+                    },
+                    "osDisk": {
+                        "name": "webosdisk",
+                        "vhd": {
+                            "uri": "[concat('http://',variables('newStorageAccountName'),'.blob.core.chinacloudapi.cn/vhds/','webosdisk', copyindex(), '.vhd')]"
+                        },
+                        "caching": "ReadWrite",
+                        "createOption": "FromImage"
+                    }
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces',concat(variables('secondaryNicNamePrefix'),copyindex()))]"
+                        }
+                    ]
+                }
+            },
+            "resources": [
+                {
+                    "apiVersion": "[variables('apiVersion')]",
+                    "type": "Microsoft.Compute/virtualMachines/extensions",
+                    "name": "[concat(parameters('secondaryVmNamePrefix'), copyindex(), '/webinstallscript')]",                    
+                    "location": "[resourceGroup().location]",     
+                    "dependsOn": [
+                        "[concat('Microsoft.Compute/virtualMachines/',parameters('secondaryVmNamePrefix'),copyindex())]"
+                    ],             
+                    "properties": {
+                        "publisher": "Microsoft.OSTCExtensions",
+                        "type": "CustomScriptForLinux",
+                        "typeHandlerVersion": "1.4",
+                        "autoUpgradeMinorVersion": true,
+                        "settings": {
+                            "fileUris": [ 
+                                "[concat(variables('webInstallScriptPrefix'), '.sh')]"                                
+                            ],
+                            "commandToExecute": "[concat('sh ', variables('webInstallName'), '.sh')]"
+                        }
+                    }
+                }
+            ]
+        }
+    ]
+}
