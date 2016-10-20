@@ -1,0 +1,326 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "adminUsername": {
+      "type": "string",
+      "metadata": {
+        "description": "User name for the Virtual Machine."
+      }
+    },
+    "adminPassword": {
+      "type": "securestring",
+      "metadata": {
+        "description": "Password for the Virtual Machine."
+      }
+    },
+    "dnsLabelPrefix": {
+      "type": "string",
+      "metadata": {
+        "description": "Unique DNS Name for the Public IP used to access the Virtual Machine."
+      }
+    },
+    "ubuntuOSVersion": {
+      "type": "string",
+      "defaultValue": "14.04.2-LTS",
+      "allowedValues": [
+        "12.04.5-LTS",
+        "14.04.2-LTS",
+        "15.10",
+        "16.04.0-LTS"
+      ],
+      "metadata": {
+        "description": "The Ubuntu version for the VM. This will pick a fully patched image of this given Ubuntu version. Allowed values: 12.04.5-LTS, 14.04.2-LTS, 15.10, 16.04.0-LTS."
+      }
+    },
+	    "numberOfWebClusterInstances": {
+            "type": "int",
+            "minValue": 1,
+            "maxValue": 100,
+            "metadata": {
+                "description": "Instance number of Web cluster servers"
+            }
+        },
+        "webClusterVmNamePrefix": {
+            "type": "string",
+            "metadata": {
+                "description": "Virtual machine name prefix for web cluster vm instances"
+            }
+        },
+		"webclusterVMSize": {
+            "type": "string",
+            "defaultValue": "Standard_A1",
+            "allowedValues": [
+                "Standard_A1",
+                "Standard_A2",
+                "Standard_A3",
+                "Standard_A4",
+                "Standard_A5",
+                "Standard_A6",
+                "Standard_A7",
+                "Standard_D1",
+                "Standard_D2",
+                "Standard_D3",
+                "Standard_D4",
+                "Standard_D11",
+                "Standard_D12",
+                "Standard_D13",
+                "Standard_D14",
+                "Standard_D1_v2",
+                "Standard_D2_v2",
+                "Standard_D3_v2",
+                "Standard_D4_v2",
+                "Standard_D5_v2",
+                "Standard_D11_v2",
+                "Standard_D12_v2",
+                "Standard_D13_v2",
+                "Standard_D14_v2",
+                "Standard_DS1",
+                "Standard_DS2",
+                "Standard_DS3",
+                "Standard_DS4",
+                "Standard_DS11",
+                "Standard_DS12",
+                "Standard_DS13",
+                "Standard_DS14"
+            ],
+            "metadata": {
+                "description": "Nginx server Virtual machine size"
+            }
+        },
+        "webClusterOSUBTSKU": {
+            "type": "string",
+            "defaultValue": "6.7",
+            "allowedValues": [
+                "6.7"
+            ],
+            "metadata": {
+                "description": "The CentOS version for the VM. This will pick a origented image of this given ubuntu version. Allowed values: 6.7."
+            }
+        }		
+  },
+  "variables": {
+    "storageAccountName": "[concat(uniquestring(resourceGroup().id))]",
+    "dataDisk1VhdName": "datadisk1",
+    "imagePublisher": "OpenLogic",
+    "imageOffer": "CentOS",
+    "OSDiskName": "osdiskforlinuxsimple",
+    "nicName": "myVMNic",
+    "addressPrefix": "10.0.0.0/16",
+    "subnetName": "web",
+    "subnetPrefix": "10.0.0.0/24",
+    "storageAccountType": "Standard_LRS",
+    "publicIPAddressName": "myPublicIP",
+    "publicIPAddressType": "Dynamic",
+    "vmStorageAccountContainerName": "vhds",
+    "vmName": "MyUbuntuVM",
+    "vmSize": "Standard_D1",
+    "virtualNetworkName": "clusterCloudVNET",
+    "vnetID": "[resourceId('Microsoft.Network/virtualNetworks',variables('virtualNetworkName'))]",
+    "subnetwebClusterRef": "[concat(variables('vnetID'),'/subnets/',variables('subnetName'))]",
+    "apiVersion": "2015-06-15",
+	"webClusterNicNamePrefix": "newnicwebCluster",
+	"availabilitySetName": "webCloudAvSet",
+	"networkSecurityGroupName": "clusterCloudNetworkSecurityGroup",
+	"subnetSLBPrefix": "10.0.1.0/24",
+	"subnetwebClusterPrefixNew": "[concat('10.0.2', '.0/24')]",
+        "haProxysubnetSLBPrefix": "10.0.3.0/24",
+        "mysqlsubnetSLBPrefix": "10.0.4.0/24"
+  },
+  "resources": [
+
+        {
+            "type": "Microsoft.Storage/storageAccounts",
+            "name": "[concat(variables('storageAccountName'), 'webcluster', copyindex())]",
+            "apiVersion": "[variables('apiVersion')]",
+            "location": "[resourceGroup().location]",
+            "copy": {
+                "name": "WebclusterStorageLoop",
+                "count": "[parameters('numberOfWebClusterInstances')]"
+            },
+            "properties": {
+                "accountType": "[variables('storageAccountType')]"
+            }
+        },	
+        {
+            "type": "Microsoft.Compute/availabilitySets",
+            "name": "[variables('availabilitySetName')]",
+            "apiVersion": "[variables('apiVersion')]",
+            "location": "[resourceGroup().location]",
+            "properties": {}
+        },		
+	{
+            "apiVersion": "[variables('apiVersion')]",
+            "type": "Microsoft.Network/networkSecurityGroups",
+            "name": "[variables('networkSecurityGroupName')]",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "securityRules": [
+                    {
+                        "name": "ssh",
+                        "properties": {
+                            "description": "This is the ssh rule",
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "22",
+                            "sourceAddressPrefix": "*",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 100,
+                            "direction": "Inbound"
+                        }
+                    },
+                    {
+                        "name": "http",
+                        "properties": {
+                            "description": "This is the http rule",
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "80",
+                            "sourceAddressPrefix": "*",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 101,
+                            "direction": "Inbound"
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "apiVersion": "[variables('apiVersion')]",
+            "type": "Microsoft.Network/virtualNetworks",
+            "name": "[variables('virtualNetworkName')]",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[concat('Microsoft.Network/networkSecurityGroups/', variables('networkSecurityGroupName'))]"
+            ],
+            "properties": {
+                "addressSpace": {
+                    "addressPrefixes": [
+                        "[variables('addressPrefix')]"
+                    ]
+                },
+                "subnets": [
+                    {
+                        "name": "slb",
+                        "properties": {
+                            "addressPrefix": "[variables('subnetSLBPrefix')]",
+                            "networkSecurityGroup": {
+                                "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('networkSecurityGroupName'))]"
+                            }
+                        }
+                    },
+                    {
+                        "name": "web",
+                        "properties": {
+                            "addressPrefix": "[variables('subnetwebClusterPrefixNew')]",
+                            "networkSecurityGroup": {
+                                "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('networkSecurityGroupName'))]"
+                            }
+                        }
+                    },
+                    {
+                        "name": "ha",
+                        "properties": {
+                            "addressPrefix": "[variables('haProxysubnetSLBPrefix')]",
+                            "networkSecurityGroup": {
+                                "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('networkSecurityGroupName'))]"
+                            }
+                        }
+                    },
+                    {
+                        "name": "mysql",
+                        "properties": {
+                            "addressPrefix": "[variables('mysqlsubnetSLBPrefix')]",
+                            "networkSecurityGroup": {
+                                "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('networkSecurityGroupName'))]"
+                            }
+                        }
+                    }
+                ]
+            }
+        },
+		{
+            "apiVersion": "[variables('apiVersion')]",
+            "type": "Microsoft.Network/networkInterfaces",
+            "name": "[concat(variables('webClusterNicNamePrefix'), copyindex(100))]",
+            "location": "[resourceGroup().location]",
+            "copy": {
+                "name": "nicLoopwebCluster",
+                "count": "[parameters('numberOfWebClusterInstances')]"
+            },
+            "dependsOn": [
+                "[concat('Microsoft.Network/virtualNetworks/', variables('virtualNetworkName'))]"
+            ],
+            "properties": {
+                "ipConfigurations": [
+                    {
+                        "name": "ipconfigwebCluster",
+                        "properties": {
+                            "privateIPAllocationMethod": "Static",
+                            "privateIPAddress": "[concat('10.0.2.', copyindex(200))]",
+                            "subnet": {
+                                "id": "[variables('subnetwebClusterRef')]"
+                            }
+                        }
+                    }
+                ]
+            }
+        },
+		{
+            "apiVersion": "[variables('apiVersion')]",
+            "type": "Microsoft.Compute/virtualMachines",
+            "name": "[concat(parameters('webClusterVmNamePrefix'), copyindex())]",
+            "copy": {
+                "name": "virtualMachineLoopwebCluster",
+                "count": "[parameters('numberOfWebClusterInstances')]"
+            },
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[concat('Microsoft.Storage/storageAccounts/', variables('StorageAccountName'), 'webcluster', copyindex())]",
+                "[concat('Microsoft.Network/networkInterfaces/', variables('webClusterNicNamePrefix'), copyindex(100))]",
+                "[concat('Microsoft.Compute/availabilitySets/', variables('availabilitySetName'))]"
+            ],
+            "tags": {
+                "Role": "webCluster"
+            },
+            "properties": {
+                "availabilitySet": {
+                    "id": "[resourceId('Microsoft.Compute/availabilitySets',variables('availabilitySetName'))]"
+                },
+                "hardwareProfile": {
+                    "vmSize": "[parameters('webclusterVMSize')]"
+                },
+                "osProfile": {
+                    "computername": "[concat(parameters('webClusterVmNamePrefix'), copyIndex())]",
+                    "adminUsername": "[parameters('adminUsername')]",
+                    "adminPassword": "[parameters('adminPassword')]"
+                },
+                "storageProfile": {
+                    "imageReference": {
+                        "publisher": "[variables('imagePublisher')]",
+                        "offer": "[variables('imageOffer')]",
+                        "sku": "[parameters('webClusterOSUBTSKU')]",
+                        "version": "latest"
+                    },
+                    "osDisk": {
+                        "name": "webClusterosdisk",
+                        "vhd": {
+                            "uri": "[concat('http://',variables('StorageAccountName'), 'webcluster', copyindex(), '.blob.core.chinacloudapi.cn/vhds/','webClusterosdisk', copyindex(100), '.vhd')]"
+                        },
+                        "caching": "ReadWrite",
+                        "createOption": "FromImage"
+                    }
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces',concat(variables('webClusterNicNamePrefix'),copyindex(100)))]"
+                        }
+                    ]
+                }
+            }
+        }
+  ]
+}
