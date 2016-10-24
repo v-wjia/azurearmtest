@@ -97,38 +97,37 @@
             "metadata": {
                 "description": "The CentOS version for the VM. This will pick a origented image of this given ubuntu version. Allowed values: 6.7."
             }
-        }		
+        },
+    "newWebVMstartAddress": {
+      "type": "int",
+      "metadata": {
+        "description": "Start IP address for the new Web Virtual Machines which will use in copyindex loop."
+      }
+    },    
+        
   },
   "variables": {
-    "storageAccountName": "[concat(uniquestring(resourceGroup().id))]",
-    "dataDisk1VhdName": "datadisk1",
-    "imagePublisher": "OpenLogic",
-    "imageOffer": "CentOS",
-    "OSDiskName": "osdiskforlinuxsimple",
-    "nicName": "myVMNic",
-    "addressPrefix": "10.0.0.0/16",
-    "subnetName": "web",
-    "subnetPrefix": "10.0.0.0/24",
-    "storageAccountType": "Standard_LRS",
-    "publicIPAddressName": "myPublicIP",
-    "publicIPAddressType": "Dynamic",
-    "vmStorageAccountContainerName": "vhds",
-    "vmName": "MyUbuntuVM",
-    "vmSize": "Standard_D1",
-    "virtualNetworkName": "clusterCloudVNET",
-    "vnetID": "[resourceId('Microsoft.Network/virtualNetworks',variables('virtualNetworkName'))]",
-    "subnetwebClusterRef": "[concat(variables('vnetID'),'/subnets/',variables('subnetName'))]",
-    "apiVersion": "2015-06-15",
-	"webClusterNicNamePrefix": "newnicwebCluster",
-	"availabilitySetName": "webCloudAvSet",
-	"networkSecurityGroupName": "clusterCloudNetworkSecurityGroup",
-	"subnetSLBPrefix": "10.0.1.0/24",
-	"subnetwebClusterPrefixNew": "[concat('10.0.2', '.0/24')]",
-        "haProxysubnetSLBPrefix": "10.0.3.0/24",
-        "mysqlsubnetSLBPrefix": "10.0.4.0/24"
+      "apiVersion": "2015-06-15",
+      "storageAccountName": "[concat(uniquestring(resourceGroup().id))]",
+      "dataDisk1VhdName": "datadisk1",
+      "imagePublisher": "OpenLogic",
+      "imageOffer": "CentOS",
+      "addressPrefix": "10.0.0.0/16",
+      "subnetName": "web",
+      "subnetPrefix": "10.0.0.0/24",
+      "storageAccountType": "Standard_LRS",
+      "virtualNetworkName": "clusterCloudVNET",
+      "vnetID": "[resourceId('Microsoft.Network/virtualNetworks',variables('virtualNetworkName'))]",
+      "subnetwebClusterRef": "[concat(variables('vnetID'),'/subnets/',variables('subnetName'))]",
+	  "webClusterNicNamePrefix": "newnicwebCluster",
+	  "availabilitySetName": "webCloudAvSet",
+	  "networkSecurityGroupName": "clusterCloudNetworkSecurityGroup",
+	  "subnetSLBPrefix": "10.0.1.0/24",
+	  "subnetwebClusterPrefixNew": "[concat('10.0.2', '.0/24')]",
+      "haProxysubnetSLBPrefix": "10.0.3.0/24",
+      "mysqlsubnetSLBPrefix": "10.0.4.0/24"
   },
   "resources": [
-
         {
             "type": "Microsoft.Storage/storageAccounts",
             "name": "[concat(variables('storageAccountName'), 'webcluster', copyindex())]",
@@ -149,7 +148,7 @@
             "location": "[resourceGroup().location]",
             "properties": {}
         },		
-	{
+		{
             "apiVersion": "[variables('apiVersion')]",
             "type": "Microsoft.Network/networkSecurityGroups",
             "name": "[variables('networkSecurityGroupName')]",
@@ -244,7 +243,7 @@
 		{
             "apiVersion": "[variables('apiVersion')]",
             "type": "Microsoft.Network/networkInterfaces",
-            "name": "[concat(variables('webClusterNicNamePrefix'), copyindex(100))]",
+            "name": "[concat(variables('webClusterNicNamePrefix'), copyindex(parameters('newWebVMstartAddress')))]",
             "location": "[resourceGroup().location]",
             "copy": {
                 "name": "nicLoopwebCluster",
@@ -279,7 +278,7 @@
             "location": "[resourceGroup().location]",
             "dependsOn": [
                 "[concat('Microsoft.Storage/storageAccounts/', variables('StorageAccountName'), 'webcluster', copyindex())]",
-                "[concat('Microsoft.Network/networkInterfaces/', variables('webClusterNicNamePrefix'), copyindex(100))]",
+                "[concat('Microsoft.Network/networkInterfaces/', variables('webClusterNicNamePrefix'), copyindex(parameters('newWebVMstartAddress')))]",
                 "[concat('Microsoft.Compute/availabilitySets/', variables('availabilitySetName'))]"
             ],
             "tags": {
@@ -307,7 +306,7 @@
                     "osDisk": {
                         "name": "webClusterosdisk",
                         "vhd": {
-                            "uri": "[concat('http://',variables('StorageAccountName'), 'webcluster', copyindex(), '.blob.core.chinacloudapi.cn/vhds/','webClusterosdisk', copyindex(100), '.vhd')]"
+                            "uri": "[concat('http://',variables('StorageAccountName'), 'webcluster', copyindex(), '.blob.core.chinacloudapi.cn/vhds/','webClusterosdisk', copyindex(parameters('newWebVMstartAddress')), '.vhd')]"
                         },
                         "caching": "ReadWrite",
                         "createOption": "FromImage"
@@ -316,7 +315,7 @@
                 "networkProfile": {
                     "networkInterfaces": [
                         {
-                            "id": "[resourceId('Microsoft.Network/networkInterfaces',concat(variables('webClusterNicNamePrefix'),copyindex(100)))]"
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces',concat(variables('webClusterNicNamePrefix'),copyindex(parameters('newWebVMstartAddress'))))]"
                         }
                     ]
                 }
