@@ -103,7 +103,7 @@
       "metadata": {
         "description": "Start IP address for the new Web Virtual Machines which will use in copyindex loop."
       }
-    },    
+    }
         
   },
   "variables": {
@@ -122,8 +122,10 @@
 	  "webClusterNicNamePrefix": "newnicwebCluster",
 	  "availabilitySetName": "webCloudAvSet",
 	  "networkSecurityGroupName": "clusterCloudNetworkSecurityGroup",
+      "webclusterIpSegment": "2",
+      "webNewStartIpAddress": 200,
 	  "subnetSLBPrefix": "10.0.1.0/24",
-	  "subnetwebClusterPrefixNew": "[concat('10.0.2', '.0/24')]",
+	  "subnetwebClusterPrefixNew": "[concat('10.0.', variables('webclusterIpSegment'), '.0/24')]",
       "haProxysubnetSLBPrefix": "10.0.3.0/24",
       "mysqlsubnetSLBPrefix": "10.0.4.0/24"
   },
@@ -258,7 +260,7 @@
                         "name": "ipconfigwebCluster",
                         "properties": {
                             "privateIPAllocationMethod": "Static",
-                            "privateIPAddress": "[concat('10.0.2.', copyindex(200))]",
+                            "privateIPAddress": "[concat('10.0.', variables('webclusterIpSegment'), '.', copyindex(variables('webNewStartIpAddress')))]",
                             "subnet": {
                                 "id": "[variables('subnetwebClusterRef')]"
                             }
