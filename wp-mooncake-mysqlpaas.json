@@ -1,0 +1,208 @@
+{
+  "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "siteName": {
+      "type": "string",
+        "metadata": {
+        "description": "The name of Wordpress website."
+      }
+    },
+    "hostingPlanName": {
+      "type": "string"
+    },
+    "sku": {
+      "type": "string",
+      "allowedValues": [
+        "F1",
+        "S1"
+      ],
+      "defaultValue": "F1"
+    },
+    "repoUrl": {
+      "type": "string",
+        "metadata": {
+        "description": "The URL of Wordpress website."
+      }
+    },
+    "branch": {
+      "type": "string",
+      "defaultValue": "master"
+    },
+
+    "mysqlServerName": {
+      "type": "string",
+      "metadata": {
+        "description": "The name of the MySql server. Limit 64 characters, alphanumeric. You can visit mysql via @mysqlServerName.mysqldb.chinacloudapi.cn and manage via portal.azure.cn https://manage.windowsazure.cn"
+      }
+    },
+    "mysqlServerSku": {
+      "type": "string",
+      "defaultValue": "MS2",
+      "allowedValues": [
+        "MS1",
+        "MS2",
+        "MS3",
+        "MS4",
+        "MS5",
+        "MS6"
+      ],
+      "metadata": {
+        "description": "The mysql server SKU. Memory, Storage, CpuQuota, and Connection capacity. For SKU details, please visit https://www.azure.cn/pricing/details/mysql/"
+      }
+    },
+    "mysqlServerVersion": {
+      "type": "string",
+      "allowedValues": [
+        "5.6",
+        "5.7",
+        "5.5"
+      ],
+      "defaultValue": "5.6",
+      "metadata": {
+        "description": "The version of the MySQL server. "
+      }
+    },
+    "mysqlUserName": {
+      "type": "string",
+      "metadata": {
+        "description": "The name of the user used to access the MySql database. Limit 16 characters. Note! To avoid name conflict, the end used UserName is mysqlServerName%dbUserName. (MySQL User Names and Passwords: http://dev.mysql.com/doc/refman/5.6/en/user-names.html)"
+      }
+    },
+    "mysqlPassword": {
+      "type": "securestring",
+      "metadata": {
+        "description": "The password of the user used to access the MySql database. Limit 64 characters. MySQL User Names and Passwords: http://dev.mysql.com/doc/refman/5.6/en/user-names.html"
+      }
+    },
+    "mysqldatabaseName": {
+      "type": "string",
+      "metadata": {
+        "description": "The name of the MySql database hosted on the MySql server. Limit 64 characters. (MySQL Schema Object Names: http://dev.mysql.com/doc/refman/5.6/en/identifiers.html)"
+      }
+    }
+  },
+
+  "resources": [
+    {
+      "apiVersion": "2015-08-01",
+      "name": "[parameters('hostingPlanName')]",
+      "type": "Microsoft.Web/serverFarms",
+      "location": "[resourceGroup().location]",
+      "properties": {
+        
+      },
+      "sku": {
+        "name": "[parameters('sku')]",
+        "capacity": 1
+      }
+    },
+    {
+      "apiVersion": "2015-08-01",
+      "name": "[parameters('siteName')]",
+      "type": "Microsoft.Web/Sites",
+      "location": "[resourceGroup().location]",
+      "dependsOn": [
+        "[concat('Microsoft.Web/serverFarms/', parameters('hostingPlanName'))]"
+      ],
+      "properties": {
+        "name": "[parameters('siteName')]",
+        "serverFarmId": "[parameters('hostingPlanName')]"      
+      },
+      "resources": [
+        {
+          "apiVersion": "2015-08-01",
+          "name": "web",
+          "type": "sourcecontrols",
+          "dependsOn": [
+            "[resourceId('Microsoft.Web/Sites', parameters('siteName'))]"
+          ],
+          "properties": {
+            "RepoUrl": "[parameters('repoUrl')]",
+            "branch": "[parameters('branch')]",
+            "IsManualIntegration": true
+          }
+        },
+        {
+          "apiVersion": "2014-06-01",
+          "name": "web",
+          "type": "config",
+          "dependsOn": [
+            "[concat('Microsoft.Web/sites/', parameters('siteName'))]"
+          ],
+          "properties": {
+
+            "phpVersion": "5.5"
+          }
+        }
+      ]
+    },
+
+    {
+      "type": "Microsoft.MySql/servers",
+      "name": "[parameters('mysqlServerName')]",
+      "apiVersion": "2015-09-01",
+      "location": "[resourceGroup().location]",
+      "tags": {
+        "displayName": "[parameters('mysqlServerName')]"
+      },
+      "sku": { "name": "[parameters('mysqlServerSku')]" },
+      "properties": {
+        "version": "[parameters('mysqlServerVersion')]",
+        "AllowAzureServices": true
+      },
+      "resources": [
+        {
+          "name": "AllowAllIpAddresses",
+          "type": "firewallRules",
+          "apiVersion": "2015-09-01",
+          "dependsOn": [
+            "[concat('Microsoft.MySql/servers/', parameters('mysqlServerName'))]"
+          ],
+          "properties": {
+            "startIpAddress": "0.0.0.0",
+            "endIpAddress": "255.255.255.255"
+          }
+        },
+        {
+          "name": "[parameters('mysqlUserName')]",
+          "type": "users",
+          "apiVersion": "2015-09-01",
+          "dependsOn": [
+            "[concat('Microsoft.MySql/servers/', parameters('mysqlServerName'))]"
+          ],
+          "properties": {
+            "password": "[parameters('mysqlPassword')]"
+          }
+        },
+
+        {
+          "name": "[parameters('mysqldatabaseName')]",
+          "type": "databases",
+          "tags": {
+            "displayName": "[parameters('mysqldatabaseName')]"
+          },
+          "apiVersion": "2015-09-01",
+          "dependsOn": [
+            "[concat('Microsoft.MySql/servers/', parameters('mysqlServerName'))]"
+          ],
+          "properties": { },
+          "resources": [
+            {
+              "name": "[parameters('mysqlUserName')]",
+              "type": "privileges",
+              "apiVersion": "2015-09-01",
+              "dependsOn": [
+                "[concat('Microsoft.MySql/servers/', parameters('mysqlServerName'), '/users/', parameters('mysqlUserName'))]",
+                "[concat('Microsoft.MySql/servers/', parameters('mysqlServerName'), '/databases/', parameters('mysqldatabaseName'))]"
+              ],
+              "properties": {
+                "level": "ReadWrite"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
